@@ -36,8 +36,12 @@ react-leaflet 5 · Framer Motion · lucide-react
 
 ```bash
 npm install
-npm run dev        # http://localhost:3311
+npm run dev        # http://localhost:3311/demo
+npm run typecheck  # types are checked here, not during next build
 ```
+
+The app is served under the `/demo` base path (see `basePath` in
+`next.config.mjs`), matching where it is published in production.
 
 ## Docker
 
@@ -67,13 +71,15 @@ inbound ports — the tunnel dials out to Cloudflare.
 
 4. In the tunnel's **Public hostname** tab, add a route:
 
-   | Field    | Value                    |
-   | -------- | ------------------------ |
-   | Subdomain / domain | e.g. `ice.glacianav.com` |
-   | Service type | `HTTP`               |
-   | URL      | `app:3000`               |
+   | Field   | Value              |
+   | ------- | ------------------ |
+   | Domain  | `glacianav.com`    |
+   | Path    | `demo*`            |
+   | Service | `http://app:3000`  |
 
    `app` is the compose service name, resolved on the shared `web` network.
+   The path must be listed **above** any catch-all route for the same
+   hostname, since cloudflared matches rules top-down.
 
 5. Start everything:
 
