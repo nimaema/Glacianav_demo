@@ -36,12 +36,9 @@ react-leaflet 5 · Framer Motion · lucide-react
 
 ```bash
 npm install
-npm run dev        # http://localhost:3311/demo
+npm run dev        # http://localhost:3311
 npm run typecheck  # types are checked here, not during next build
 ```
-
-The app is served under the `/demo` base path (see `basePath` in
-`next.config.mjs`), matching where it is published in production.
 
 ## Docker
 
@@ -56,12 +53,47 @@ The app listens on port 3000 inside the container and is published to
 
 ## Deploying behind Cloudflare
 
-A hostname's DNS can only be routed by **one** Cloudflare Tunnel. Because
-`glacianav.com` is already owned by another app's tunnel, the demo is
-published by adding a path rule to *that* tunnel — creating a second tunnel
-for the same hostname will fail with "Failed to add published application".
+The app is served at the root, so it wants its own hostname
+(`demo.glacianav.com`) via its own tunnel — see **standalone** below.
 
-### Publishing at glacianav.com/demo (shared tunnel)
+> A hostname's DNS can only be routed by **one** Cloudflare Tunnel. Adding a
+> second tunnel for a hostname another tunnel already owns fails with
+> "Failed to add published application".
+
+### Publishing on its own hostname (standalone tunnel)
+
+1. **Zero Trust → Networks → Tunnels → Create a tunnel** (type: Cloudflared).
+   Create it in the **same Cloudflare account that holds the `glacianav.com`
+   zone** — otherwise the public hostname saves into the tunnel's ingress but
+   no DNS record is ever created, and the name fails to resolve.
+2. Copy the token from the install command.
+3. On the server:
+
+   ```bash
+   cp .env.example .env      # paste the token into TUNNEL_TOKEN
+   docker compose --profile standalone up -d --build
+   ```
+
+4. Add the public hostname: `demo.glacianav.com` → service
+   **`http://app:3000`**.
+
+   `app` is the compose service name. Do **not** use `http://localhost:3311`
+   — inside the cloudflared container `localhost` is that container itself,
+   not the host, so nothing is listening there.
+
+5. Confirm DNS actually exists (the dashboard should have created it):
+
+   ```bash
+   dig +short demo.glacianav.com     # expect a CNAME/proxied answer
+   ```
+
+   If it is empty, add it by hand in **DNS → Records**: `CNAME`, name
+   `demo`, target `<TUNNEL-ID>.cfargotunnel.com`, **Proxied**.
+
+### Publishing under a path on an existing hostname (shared tunnel)
+
+Only if the demo must live at `glacianav.com/demo` instead. This requires
+`basePath: "/demo"` in `next.config.mjs`, or every asset 404s.
 
 1. Find the Docker network the existing tunnel runs on:
 
@@ -101,27 +133,10 @@ docker run --rm --network <network> curlimages/curl -s -o /dev/null \
   -w '%{http_code}\n' http://glacianav-demo:3000/demo    # expect 200
 ```
 
-### Publishing on its own hostname (standalone tunnel)
-
-If instead the demo gets its own subdomain, use the bundled sidecar. Remove
-`basePath` from `next.config.mjs` first, since the app would then live at the
-root.
-
-```bash
-cp .env.example .env        # paste the tunnel token into TUNNEL_TOKEN
-docker compose --profile standalone up -d --build
-```
-
-Route that tunnel's public hostname to `http://app:3000`.
-
-Cloudflare terminates TLS at the edge, so no certificates are needed on the
-server. To make the app reachable *only* through the tunnel, drop the `ports:`
-block from the `app` service.
-
 ### Updating
 
 ```bash
 git pull
-TUNNEL_NETWORK=<network> docker compose \
-  -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build app
+docker compose --profile standalone up -d --build     # standalone tunnel
 ```
+
