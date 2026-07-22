@@ -1,0 +1,21 @@
+# Override for publishing at glacianav.com/demo through the EXISTING
+# Cloudflare Tunnel that already owns the glacianav.com hostname.
+#
+# It joins this app to that tunnel's Docker network, so its cloudflared
+# container can resolve http://glacianav-demo:3000. No second tunnel is
+# created — a hostname can only be routed by one tunnel.
+#
+# Usage (TUNNEL_NETWORK is the existing tunnel's network name):
+#   TUNNEL_NETWORK=<name> docker compose \
+#     -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build app
+
+services:
+  app:
+    networks:
+      - demo
+      - tunnel
+
+networks:
+  tunnel:
+    name: ${TUNNEL_NETWORK:?set TUNNEL_NETWORK to the existing tunnel's docker network}
+    external: true
