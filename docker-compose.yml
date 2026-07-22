@@ -1,0 +1,32 @@
+services:
+  app:
+    build: .
+    image: glacianav-demo:latest
+    container_name: glacianav-demo
+    restart: unless-stopped
+    expose:
+      - "3000"
+    # Published so you can smoke-test on the host; Cloudflare reaches the
+    # container over the internal network, so this can be removed if you
+    # want the app to be tunnel-only.
+    ports:
+      - "127.0.0.1:3311:3000"
+    networks:
+      - web
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: glacianav-demo-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # Token from: Cloudflare Zero Trust > Networks > Tunnels > your tunnel
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
+    depends_on:
+      - app
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge
